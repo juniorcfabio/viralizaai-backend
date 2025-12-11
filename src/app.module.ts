@@ -5,12 +5,12 @@ import { AppService } from './app.service';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 
-const isProd = process.env.NODE_ENV === 'production';
+const hasDatabaseUrl = !!process.env.DATABASE_URL;
 
 @Module({
   imports: [
     TypeOrmModule.forRoot(
-      isProd
+      hasDatabaseUrl
         ? {
             type: 'postgres',
             url: process.env.DATABASE_URL,
