@@ -7,14 +7,17 @@ WORKDIR /app
 # Copiar package.json e package-lock.json
 COPY package*.json ./
 
-# Instalar dependências
-RUN npm ci --only=production
+# Instalar TODAS as dependências (incluindo devDependencies para build)
+RUN npm ci
 
 # Copiar código fonte
 COPY . .
 
 # Build da aplicação
 RUN npm run build
+
+# Remover devDependencies após build para reduzir tamanho
+RUN npm ci --only=production && npm cache clean --force
 
 # Expor porta (Railway usa PORT env var)
 EXPOSE $PORT
