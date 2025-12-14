@@ -5,12 +5,15 @@ import {
   PaymentProviderConfig,
   ProviderKey,
 } from './payment-provider-config.entity';
+import { AffiliateSettings } from '../affiliates/affiliate-settings.entity';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectRepository(PaymentProviderConfig)
     private readonly providerRepo: Repository<PaymentProviderConfig>,
+    @InjectRepository(AffiliateSettings)
+    private readonly affiliateSettingsRepo: Repository<AffiliateSettings>,
   ) {}
 
   async getAllPaymentConfigs() {
@@ -51,5 +54,31 @@ export class AdminService {
     }
 
     return this.providerRepo.save(existing);
+  }
+
+  async getAffiliateSettings() {
+    const existing = await this.affiliateSettingsRepo.find({
+      order: { createdAt: 'ASC' },
+      take: 1,
+    });
+
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    const created = this.affiliateSettingsRepo.create({
+      commissionRatePercent: '20.00',
+    });
+    return this.affiliateSettingsRepo.save(created);
+  }
+
+  async upsertAffiliateSettings(data: { commissionRatePercent?: number }) {
+    const current = await this.getAffiliateSettings();
+
+    if (typeof data.commissionRatePercent === 'number') {
+      current.commissionRatePercent = data.commissionRatePercent.toFixed(2);
+    }
+
+    return this.affiliateSettingsRepo.save(current);
   }
 }

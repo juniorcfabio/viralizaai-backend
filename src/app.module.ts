@@ -4,6 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
+import { AffiliatesModule } from './affiliates/affiliates.module';
+import { HealthController } from './health/health.controller';
 
 const hasDatabaseUrl = !!process.env.DATABASE_URL;
 
@@ -30,8 +32,9 @@ const hasDatabaseUrl = !!process.env.DATABASE_URL;
     ),
     PaymentsModule,
     AdminModule,
+    AffiliatesModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}

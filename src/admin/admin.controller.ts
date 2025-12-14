@@ -25,4 +25,16 @@ export class AdminController {
     const provider = providerParam as ProviderKey;
     return this.adminService.upsertPaymentConfig(provider, body);
   }
+
+  // GET /admin/affiliate-settings
+  @Get('affiliate-settings')
+  getAffiliateSettings() {
+    return this.adminService.getAffiliateSettings();
+  }
+
+  // PUT /admin/affiliate-settings
+  @Put('affiliate-settings')
+  updateAffiliateSettings(@Body() body: { commissionRatePercent?: number }) {
+    return this.adminService.upsertAffiliateSettings(body);
+  }
 }
