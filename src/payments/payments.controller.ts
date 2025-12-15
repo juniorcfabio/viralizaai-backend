@@ -52,6 +52,22 @@ export class PaymentsController {
     return this.paymentsService.confirmTransaction(body.txId);
   }
 
+  // ------- Admin: criar comissão manualmente (correção retroativa) -------
+  // POST /payments/admin/affiliate-commission
+  @Post('admin/affiliate-commission')
+  createAffiliateCommissionManually(
+    @Body()
+    body: {
+      txId: string;
+      affiliateCode: string;
+      referredUserId?: string | null;
+      referredUserName?: string | null;
+      referredUserEmail?: string | null;
+    },
+  ) {
+    return this.paymentsService.createAffiliateCommissionManually(body);
+  }
+
   // ------- WEBHOOK Stripe -------
   @Post('webhook')
   handleStripeWebhookCompat(@Body() payload: any) {

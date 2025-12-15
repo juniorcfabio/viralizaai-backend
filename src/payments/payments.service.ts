@@ -337,6 +337,40 @@ export class PaymentsService {
     return saved;
   }
 
+  async createAffiliateCommissionManually(input: {
+    txId: string;
+    affiliateCode: string;
+    referredUserId?: string | null;
+    referredUserName?: string | null;
+    referredUserEmail?: string | null;
+  }) {
+    const { txId, affiliateCode } = input;
+
+    if (!txId) {
+      throw new BadRequestException('txId é obrigatório.');
+    }
+    if (!affiliateCode) {
+      throw new BadRequestException('affiliateCode é obrigatório.');
+    }
+
+    const tx = await this.txRepo.findOne({ where: { id: txId } });
+    if (!tx) {
+      throw new BadRequestException('Transação não encontrada.');
+    }
+
+    const metadata: Record<string, any> = {
+      referralCode: affiliateCode,
+      referredUserId: input.referredUserId || null,
+      userId: tx.userId,
+      userName: input.referredUserName || null,
+      userEmail: input.referredUserEmail || null,
+    };
+
+    await this.createAffiliateCommissionIfApplicable(tx, metadata);
+
+    return { ok: true };
+  }
+
   /**
    * Cria um registro de comissão de afiliado, caso exista um
    * código de afiliado nos metadados da transação.
