@@ -53,6 +53,11 @@ export class PaymentsController {
   }
 
   // ------- WEBHOOK Stripe -------
+  @Post('webhook')
+  handleStripeWebhookCompat(@Body() payload: any) {
+    return this.paymentsService.handleStripeWebhookEvent(payload);
+  }
+
   @Post('webhooks/stripe')
   handleStripeWebhook(@Body() payload: any) {
     // Agora delega para o service, que atualiza a transação
