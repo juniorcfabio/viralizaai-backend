@@ -21,7 +21,11 @@ export class EmailService {
       host,
       port,
       secure: port === 465,
+      requireTLS: port === 587,
       auth: { user, pass },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
     });
 
     return this.transporter;
