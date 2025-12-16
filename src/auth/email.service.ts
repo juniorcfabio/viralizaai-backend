@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import sgMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
+  private sendgridConfigured = false;
 
   private getTransporter() {
     if (this.transporter) return this.transporter;
@@ -31,6 +33,17 @@ export class EmailService {
     return this.transporter;
   }
 
+  private getSendgridClient() {
+    if (this.sendgridConfigured) return true;
+
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) return false;
+
+    sgMail.setApiKey(apiKey);
+    this.sendgridConfigured = true;
+    return true;
+  }
+
   async sendEmailVerification(input: { to: string; name: string; verifyUrl: string }) {
     const fromName = process.env.EMAIL_FROM_NAME || 'Viraliza.ai';
     const fromEmail = process.env.EMAIL_FROM_EMAIL || process.env.SMTP_USER;
@@ -50,10 +63,23 @@ export class EmailService {
       </div>
     `;
 
+    const from = `${fromName} <${fromEmail}>`;
+
+    if (this.getSendgridClient()) {
+      await sgMail.send({
+        to: input.to,
+        from: fromEmail!,
+        subject,
+        text,
+        html,
+      });
+      return;
+    }
+
     const transporter = this.getTransporter();
 
     await transporter.sendMail({
-      from: `${fromName} <${fromEmail}>`,
+      from,
       to: input.to,
       subject,
       text,
