@@ -25,8 +25,11 @@ function hashPassword(password: string) {
 
 function verifyPassword(password: string, stored: string) {
   const parts = stored.split('$');
-  if (parts.length !== 6) return false;
-  const [, algo, iterationsStr, salt, hash] = parts;
+  // Expected format: pbkdf2$sha256$120000$<salt>$<hash>
+  // (5 parts when split by '$')
+  if (parts.length !== 5) return false;
+  const [scheme, algo, iterationsStr, salt, hash] = parts;
+  if (scheme !== 'pbkdf2') return false;
   if (algo !== 'sha256') return false;
   const iterations = Number(iterationsStr);
   if (!iterations || Number.isNaN(iterations)) return false;
