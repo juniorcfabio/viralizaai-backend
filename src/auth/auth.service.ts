@@ -4,9 +4,12 @@ import { Repository } from 'typeorm';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { EmailService } from './email.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { User } from './entities/user.entity';
 
 function normalizeEmail(email: string) {
@@ -45,6 +48,8 @@ export class AuthService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(EmailVerificationToken)
     private readonly tokenRepo: Repository<EmailVerificationToken>,
+    @InjectRepository(PasswordResetToken)
+    private readonly passwordResetRepo: Repository<PasswordResetToken>,
     private readonly emailService: EmailService,
   ) {}
 
@@ -223,5 +228,78 @@ export class AuthService {
         createdAt: user.createdAt,
       },
     };
+  }
+
+  async forgotPassword(input: ForgotPasswordDto) {
+    const email = normalizeEmail(input?.email || '');
+    if (!email) throw new BadRequestException('E-mail é obrigatório.');
+
+    const user = await this.userRepo.findOne({ where: { email } });
+
+    // Evitar enumeração de usuários
+    if (!user) {
+      return {
+        success: true,
+        message: 'Se o e-mail existir, enviaremos um link para redefinir a senha.',
+      };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1h
+
+    const reset = this.passwordResetRepo.create({
+      token,
+      userId: user.id,
+      expiresAt,
+      usedAt: null,
+    });
+
+    await this.passwordResetRepo.save(reset);
+
+    const frontendBase = process.env.FRONTEND_URL || 'https://viralizaai.vercel.app';
+    const resetUrl = `${frontendBase}/#/reset-password?token=${token}`;
+
+    try {
+      await this.emailService.sendPasswordReset({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+      });
+    } catch (err) {
+      console.error('Failed to send password reset email', {
+        userId: user.id,
+        email: user.email,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Se o e-mail existir, enviaremos um link para redefinir a senha.',
+    };
+  }
+
+  async resetPassword(input: ResetPasswordDto) {
+    const token = (input?.token || '').trim();
+    const password = input?.password || '';
+
+    if (!token) throw new BadRequestException('Token é obrigatório.');
+    if (password.length < 6) throw new BadRequestException('Senha deve ter no mínimo 6 caracteres.');
+
+    const record = await this.passwordResetRepo.findOne({ where: { token } });
+    if (!record) throw new BadRequestException('Token inválido ou expirado.');
+    if (record.usedAt) throw new BadRequestException('Token inválido ou expirado.');
+    if (record.expiresAt.getTime() < Date.now()) throw new BadRequestException('Token inválido ou expirado.');
+
+    const user = await this.userRepo.findOne({ where: { id: record.userId } });
+    if (!user) throw new BadRequestException('Usuário não encontrado.');
+
+    user.passwordHash = hashPassword(password);
+    await this.userRepo.save(user);
+
+    record.usedAt = new Date();
+    await this.passwordResetRepo.save(record);
+
+    return { success: true, message: 'Senha redefinida com sucesso.' };
   }
 }

@@ -4,10 +4,11 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { User } from './entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, EmailVerificationToken])],
+  imports: [TypeOrmModule.forFeature([User, EmailVerificationToken, PasswordResetToken])],
   controllers: [AuthController],
   providers: [AuthService, EmailService],
   exports: [AuthService],

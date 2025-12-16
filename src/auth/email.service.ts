@@ -86,4 +86,46 @@ export class EmailService {
       html,
     });
   }
+
+  async sendPasswordReset(input: { to: string; name: string; resetUrl: string }) {
+    const fromName = process.env.EMAIL_FROM_NAME || 'Viraliza.ai';
+    const fromEmail = process.env.EMAIL_FROM_EMAIL || process.env.SMTP_USER;
+
+    const subject = 'Redefinir senha - Viraliza.ai';
+    const text = `Olá ${input.name},\n\nPara redefinir sua senha, clique no link: ${input.resetUrl}\n\nSe você não solicitou isso, ignore este e-mail.`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5">
+        <h2>Redefinir senha</h2>
+        <p>Olá <b>${input.name}</b>,</p>
+        <p>Para redefinir sua senha, clique no botão abaixo:</p>
+        <p style="margin: 24px 0">
+          <a href="${input.resetUrl}" style="background:#4F46E5;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;display:inline-block">Redefinir senha</a>
+        </p>
+        <p>Se você não solicitou isso, ignore este e-mail.</p>
+      </div>
+    `;
+
+    if (this.getSendgridClient()) {
+      await sgMail.send({
+        to: input.to,
+        from: fromEmail!,
+        subject,
+        text,
+        html,
+      });
+      return;
+    }
+
+    const transporter = this.getTransporter();
+    const from = `${fromName} <${fromEmail}>`;
+
+    await transporter.sendMail({
+      from,
+      to: input.to,
+      subject,
+      text,
+      html,
+    });
+  }
 }
