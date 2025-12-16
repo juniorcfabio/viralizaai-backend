@@ -161,11 +161,18 @@ export class AuthService {
 
     const record = await this.tokenRepo.findOne({ where: { token } });
     if (!record) return { success: false };
-    if (record.usedAt) return { success: false };
-    if (record.expiresAt.getTime() < Date.now()) return { success: false };
 
     const user = await this.userRepo.findOne({ where: { id: record.userId } });
     if (!user) return { success: false };
+
+    // Idempotência: se o usuário já está verificado, considere sucesso mesmo
+    // quando o token já foi consumido/expirou (ex.: prefetch do Gmail/antivírus).
+    if (user.emailVerifiedAt) {
+      return { success: true };
+    }
+
+    if (record.usedAt) return { success: false };
+    if (record.expiresAt.getTime() < Date.now()) return { success: false };
 
     if (!user.emailVerifiedAt) {
       user.emailVerifiedAt = new Date();
