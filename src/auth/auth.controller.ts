@@ -13,6 +13,11 @@ export class AuthController {
     return this.authService.register(body);
   }
 
+  @Post('resend-verification')
+  async resendVerification(@Body('email') email: string) {
+    return this.authService.resendEmailVerification(email);
+  }
+
   @Get('verify-email')
   async verifyEmail(@Query('token') token: string, @Res() res: Response) {
     const result = await this.authService.verifyEmail(token);

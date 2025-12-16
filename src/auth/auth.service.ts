@@ -88,15 +88,68 @@ export class AuthService {
     const backendBaseUrl = process.env.BACKEND_PUBLIC_URL || 'https://viralizaai-backend-production.up.railway.app';
     const verifyUrl = `${backendBaseUrl}/auth/verify-email?token=${token}`;
 
-    await this.emailService.sendEmailVerification({
-      to: savedUser.email,
-      name: savedUser.name,
-      verifyUrl,
-    });
+    try {
+      await this.emailService.sendEmailVerification({
+        to: savedUser.email,
+        name: savedUser.name,
+        verifyUrl,
+      });
+    } catch (err) {
+      console.error('Failed to send verification email', {
+        userId: savedUser.id,
+        email: savedUser.email,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     return {
       success: true,
       message: 'Cadastro criado. Verifique seu e-mail para confirmar a conta.',
+    };
+  }
+
+  async resendEmailVerification(emailRaw: string) {
+    const email = normalizeEmail(emailRaw || '');
+    if (!email) throw new BadRequestException('E-mail é obrigatório.');
+
+    const user = await this.userRepo.findOne({ where: { email } });
+    if (!user) throw new BadRequestException('Usuário não encontrado.');
+    if (user.emailVerifiedAt) {
+      return { success: true, message: 'E-mail já confirmado.' };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
+
+    const verification = this.tokenRepo.create({
+      token,
+      userId: user.id,
+      expiresAt,
+      usedAt: null,
+    });
+
+    await this.tokenRepo.save(verification);
+
+    const backendBaseUrl = process.env.BACKEND_PUBLIC_URL || 'https://viralizaai-backend-production.up.railway.app';
+    const verifyUrl = `${backendBaseUrl}/auth/verify-email?token=${token}`;
+
+    try {
+      await this.emailService.sendEmailVerification({
+        to: user.email,
+        name: user.name,
+        verifyUrl,
+      });
+    } catch (err) {
+      console.error('Failed to resend verification email', {
+        userId: user.id,
+        email: user.email,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Se o e-mail existir, enviamos um novo link de verificação.',
     };
   }
 
