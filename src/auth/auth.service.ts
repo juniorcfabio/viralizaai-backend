@@ -1,0 +1,164 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import { EmailService } from './email.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { User } from './entities/user.entity';
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function normalizeCpf(cpf: string) {
+  return cpf.replace(/\D/g, '').trim();
+}
+
+function hashPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 120000, 32, 'sha256').toString('hex');
+  return `pbkdf2$sha256$120000$${salt}$${hash}`;
+}
+
+function verifyPassword(password: string, stored: string) {
+  const parts = stored.split('$');
+  if (parts.length !== 6) return false;
+  const [, algo, iterationsStr, salt, hash] = parts;
+  if (algo !== 'sha256') return false;
+  const iterations = Number(iterationsStr);
+  if (!iterations || Number.isNaN(iterations)) return false;
+
+  const computed = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(hash, 'hex'));
+}
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(EmailVerificationToken)
+    private readonly tokenRepo: Repository<EmailVerificationToken>,
+    private readonly emailService: EmailService,
+  ) {}
+
+  async register(input: RegisterDto) {
+    const name = (input.name || '').trim();
+    const email = normalizeEmail(input.email || '');
+    const cpf = normalizeCpf(input.cpf || '');
+    const password = input.password || '';
+
+    if (!name) throw new BadRequestException('Nome é obrigatório.');
+    if (!email) throw new BadRequestException('E-mail é obrigatório.');
+    if (cpf.length !== 11) throw new BadRequestException('CPF inválido.');
+    if (password.length < 6) throw new BadRequestException('Senha deve ter no mínimo 6 caracteres.');
+
+    const existingEmail = await this.userRepo.findOne({ where: { email } });
+    if (existingEmail) throw new BadRequestException('Este e-mail já está cadastrado.');
+
+    const existingCpf = await this.userRepo.findOne({ where: { cpf } });
+    if (existingCpf) throw new BadRequestException('Este CPF já está cadastrado.');
+
+    const user = this.userRepo.create({
+      name,
+      email,
+      cpf,
+      passwordHash: hashPassword(password),
+      emailVerifiedAt: null,
+      role: 'client',
+    });
+
+    const savedUser = await this.userRepo.save(user);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1h
+
+    const verification = this.tokenRepo.create({
+      token,
+      userId: savedUser.id,
+      expiresAt,
+      usedAt: null,
+    });
+
+    await this.tokenRepo.save(verification);
+
+    const backendBaseUrl = process.env.BACKEND_PUBLIC_URL || 'https://viralizaai-backend-production.up.railway.app';
+    const verifyUrl = `${backendBaseUrl}/auth/verify-email?token=${token}`;
+
+    await this.emailService.sendEmailVerification({
+      to: savedUser.email,
+      name: savedUser.name,
+      verifyUrl,
+    });
+
+    return {
+      success: true,
+      message: 'Cadastro criado. Verifique seu e-mail para confirmar a conta.',
+    };
+  }
+
+  async verifyEmail(token: string) {
+    if (!token) return { success: false };
+
+    const record = await this.tokenRepo.findOne({ where: { token } });
+    if (!record) return { success: false };
+    if (record.usedAt) return { success: false };
+    if (record.expiresAt.getTime() < Date.now()) return { success: false };
+
+    const user = await this.userRepo.findOne({ where: { id: record.userId } });
+    if (!user) return { success: false };
+
+    if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
+      await this.userRepo.save(user);
+    }
+
+    record.usedAt = new Date();
+    await this.tokenRepo.save(record);
+
+    return { success: true };
+  }
+
+  async login(input: LoginDto) {
+    const cpf = normalizeCpf(input.cpf || '');
+    const password = input.password || '';
+
+    if (cpf.length !== 11) throw new BadRequestException('CPF inválido.');
+
+    const user = await this.userRepo.findOne({ where: { cpf } });
+    if (!user) throw new BadRequestException('Credenciais inválidas.');
+
+    if (!user.emailVerifiedAt) {
+      throw new BadRequestException('Confirme seu e-mail antes de entrar.');
+    }
+
+    const ok = verifyPassword(password, user.passwordHash);
+    if (!ok) throw new BadRequestException('Credenciais inválidas.');
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new BadRequestException('JWT_SECRET não configurado no servidor.');
+    }
+
+    const token = jwt.sign(
+      { sub: user.id, role: user.role },
+      secret,
+      { expiresIn: '7d' },
+    );
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        cpf: user.cpf,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+    };
+  }
+}

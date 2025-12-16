@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 import { AffiliatesModule } from './affiliates/affiliates.module';
@@ -30,6 +31,7 @@ const hasDatabaseUrl = !!process.env.DATABASE_URL;
             synchronize: true,
           },
     ),
+    AuthModule,
     PaymentsModule,
     AdminModule,
     AffiliatesModule,

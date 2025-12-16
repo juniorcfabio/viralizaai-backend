@@ -17,7 +17,7 @@ async function bootstrap() {
   });
 
   // IMPORTANTE: usar a porta fornecida pelo Railway (process.env.PORT)
-  const port = process.env.PORT || 3000;
-  await app.listen(port as number);
+  const port = Number(process.env.PORT || 3000);
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();
