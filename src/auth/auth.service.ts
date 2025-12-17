@@ -257,7 +257,10 @@ export class AuthService {
     await this.passwordResetRepo.save(reset);
 
     const frontendBase = process.env.FRONTEND_URL || 'https://viralizaai.vercel.app';
-    const resetUrl = `${frontendBase}/#/reset-password?token=${token}`;
+    // IMPORTANTE: Alguns provedores (ex.: tracking) podem remover/perder o fragment (#).
+    // Por isso colocamos o token na query do path e mantemos também o fragment para o HashRouter.
+    // Se o fragment for perdido, o frontend consegue reconstruir via window.location.pathname/search.
+    const resetUrl = `${frontendBase}/reset-password?token=${token}#/reset-password`;
 
     try {
       await this.emailService.sendPasswordReset({
